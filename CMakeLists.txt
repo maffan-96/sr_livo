@@ -17,6 +17,11 @@ find_package(catkin REQUIRED COMPONENTS
   livox_ros_driver
   cv_bridge
   oneformer_pkg
+  gsm_node
+  voxblox
+  voxblox_ros
+  voxblox_msgs
+  global_segment_map
 )
 
 include(FetchContent)
@@ -53,7 +58,7 @@ find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED)
 
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs oneformer_pkg
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs oneformer_pkg gsm_node voxblox voxblox_ros voxblox_msgs global_segment_map
   DEPENDS EIGEN3 PCL
   INCLUDE_DIRS
 )

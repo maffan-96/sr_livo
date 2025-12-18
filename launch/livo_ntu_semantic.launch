@@ -23,4 +23,8 @@
       </node>
       </group>
 
+ <node pkg="tf2_ros" type="static_transform_publisher" name="bag_static_tf_1_inv"
+      args="0.050 0.000 -0.055 0.0 0.0 0.0 1.0 sensor1/os_sensor body" />
+
+
 </launch>

@@ -264,6 +264,64 @@ void opticalFlowTracker::updateLastTrackingVectorAndIds()
     }
 }
 
+// bool opticalFlowTracker::removeOutlierUsingRansacPnp(cloudFrame *p_frame, int if_remove_ourlier)
+// {
+//     cv::Mat cv_so3, cv_trans;
+//     Eigen::Vector3d eigen_so3, eigen_trans;
+
+//     std::vector<cv::Point3f> points_3d;
+//     std::vector<cv::Point2f> points_2d;
+
+//     std::vector<void *> map_ptr;
+
+//     for (auto it = map_rgb_points_in_cur_image_pose.begin(); it != map_rgb_points_in_cur_image_pose.end(); it++)
+//     {
+//         map_ptr.push_back(it->first);
+//         Eigen::Vector3d point_3d = ((rgbPoint*)it->first)->getPosition();
+
+//         points_3d.push_back(cv::Point3f(point_3d(0), point_3d(1), point_3d(2)));
+//         points_2d.push_back(it->second);
+//     }
+
+//     if (points_3d.size() < 10)
+//     {
+//         return false;
+//     }
+
+//     std::vector<int> status;
+
+//     try
+//     {
+//         cv::solvePnPRansac(points_3d, points_2d, intrinsic, cv::Mat(), cv_so3, cv_trans, false, 200, 1.5, 0.99, status); // SOLVEPNP_ITERATIVE
+//     }
+//     catch (cv::Exception &e)
+//     {
+//         scope_color(ANSI_COLOR_RED_BOLD);
+//         std::cout << "Catching a cv exception: " << e.msg << std::endl;
+//         return 0;
+//     }
+
+//     if (if_remove_ourlier)
+//     {
+//         // Remove outlier
+//         map_rgb_points_in_last_image_pose.clear();
+//         map_rgb_points_in_cur_image_pose.clear();
+
+//         for (unsigned int i = 0; i < status.size(); i++)
+//         {
+//             int inlier_idx = status[i];
+//             {
+//                 map_rgb_points_in_last_image_pose[map_ptr[inlier_idx]] = points_2d[inlier_idx];
+//                 map_rgb_points_in_cur_image_pose[map_ptr[inlier_idx]] = points_2d[inlier_idx];
+//             }
+//         }
+//     }
+
+//     updateLastTrackingVectorAndIds();
+
+//     return true;
+// }
+
 bool opticalFlowTracker::removeOutlierUsingRansacPnp(cloudFrame *p_frame, int if_remove_ourlier)
 {
     cv::Mat cv_so3, cv_trans;
@@ -283,7 +341,8 @@ bool opticalFlowTracker::removeOutlierUsingRansacPnp(cloudFrame *p_frame, int if
         points_2d.push_back(it->second);
     }
 
-    if (points_3d.size() < 10)
+    // ✅ INCREASE minimum threshold from 10 to 20 for robustness
+    if (points_3d.size() < 20)
     {
         return false;
     }
@@ -292,13 +351,29 @@ bool opticalFlowTracker::removeOutlierUsingRansacPnp(cloudFrame *p_frame, int if
 
     try
     {
-        cv::solvePnPRansac(points_3d, points_2d, intrinsic, cv::Mat(), cv_so3, cv_trans, false, 200, 1.5, 0.99, status); // SOLVEPNP_ITERATIVE
+        // ✅ Use SOLVEPNP_ITERATIVE explicitly which is more robust
+        cv::solvePnPRansac(points_3d, points_2d, intrinsic, cv::Mat(), 
+                          cv_so3, cv_trans, 
+                          false,      // useExtrinsicGuess
+                          200,        // iterationsCount
+                          1.5,        // reprojectionError
+                          0.99,       // confidence
+                          status,
+                          cv::SOLVEPNP_ITERATIVE);  // ✅ Explicit method
     }
     catch (cv::Exception &e)
     {
         scope_color(ANSI_COLOR_RED_BOLD);
         std::cout << "Catching a cv exception: " << e.msg << std::endl;
-        return 0;
+        return false;  // ✅ Return false instead of 0 for clarity
+    }
+
+    // ✅ ADD: Check if we got enough inliers
+    if (status.size() < 6)
+    {
+        scope_color(ANSI_COLOR_YELLOW_BOLD);
+        std::cout << "PnP RANSAC: Not enough inliers (" << status.size() << ")" << std::endl;
+        return false;
     }
 
     if (if_remove_ourlier)
@@ -310,6 +385,8 @@ bool opticalFlowTracker::removeOutlierUsingRansacPnp(cloudFrame *p_frame, int if
         for (unsigned int i = 0; i < status.size(); i++)
         {
             int inlier_idx = status[i];
+            // ✅ ADD: Bounds check
+            if (inlier_idx >= 0 && inlier_idx < map_ptr.size())
             {
                 map_rgb_points_in_last_image_pose[map_ptr[inlier_idx]] = points_2d[inlier_idx];
                 map_rgb_points_in_cur_image_pose[map_ptr[inlier_idx]] = points_2d[inlier_idx];

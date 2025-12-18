@@ -16,6 +16,13 @@ void rgbPoint::reset()
     is_out_lier_count = 0;
     observe_distance = 0;
     last_observe_time = 0;
+
+
+    //Initialize semantic fields
+    semantic_label = 0;
+    instance_id = 0;
+    N_semantic = 0;
+    semantic_histogram.clear();
 }
 
 void rgbPoint::setPosition(const Eigen::Vector3d &position_)

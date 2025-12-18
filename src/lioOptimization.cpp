@@ -256,6 +256,7 @@ lioOptimization::lioOptimization()
     pub_path = nh.advertise<nav_msgs::Path>("/path", 5);
     pub_cloud_color = nh.advertise<sensor_msgs::PointCloud2>("/color_global_map", 2);
     pub_cloud_semantic = nh.advertise<sensor_msgs::PointCloud2>("/semantic_global_map", 2); //modified
+    pub_cloud_semantic_lidar = nh.advertise<sensor_msgs::PointCloud2>("/semantic_cloud_lidar", 2); //modified
     pub_cloud_color_vec.resize(1000);
 
     if (cloud_pro->getLidarType() == LIVOX)
@@ -1188,7 +1189,9 @@ optimizeSummary lioOptimization::stateEstimation(cloudFrame *p_frame, bool to_re
     return optimize_summary;
 }
 
-void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_begin, double timestamp_offset, cv::Mat &cur_image, bool to_rendering)
+void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_begin, double timestamp_offset, cv::Mat &cur_image, 
+    std::vector<std::tuple<cv::Mat, int, int32_t>> &semantic_masks,
+    bool to_rendering)
 {
     state *cur_state = new state();
 
@@ -1234,6 +1237,7 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
         p_frame->image_cols = cur_image.cols;
         p_frame->image_rows = cur_image.rows;
 
+        p_frame->semantic_masks = semantic_masks; //semantic masks //modified
         img_pro->process(color_voxel_map, p_frame);
 
         // pubColorPoints(pub_cloud_color, p_frame);
@@ -1608,6 +1612,160 @@ void lioOptimization::threadPubSemanticPoints()
     }
 }
 
+
+void lioOptimization::pubSemanticPointsLidarFrame(ros::Publisher &pub_cloud_semantic, cloudFrame *p_frame)
+{
+    pcl::PointCloud<voxblox::PointSemanticInstanceType> semantic_cloud;
+
+    // World -> IMU
+    Eigen::Matrix3d R_world_imu = p_frame->p_state->rotation.toRotationMatrix();
+    Eigen::Vector3d t_world_imu = p_frame->p_state->translation;
+
+    Eigen::Matrix3d R_imu_world = R_world_imu.transpose();
+    Eigen::Vector3d t_imu_world = -R_imu_world * t_world_imu;
+
+    // IMU -> LiDAR (inverse of imu->lidar extrinsic)
+    Eigen::Matrix3d R_lidar_imu = R_imu_lidar.transpose();
+    Eigen::Vector3d t_lidar_imu = -R_lidar_imu * t_imu_lidar;
+
+    // World -> LiDAR
+    Eigen::Matrix3d R_lidar_world = R_lidar_imu * R_imu_world;
+    Eigen::Vector3d t_lidar_world = R_lidar_imu * t_imu_world + t_lidar_imu;
+
+    for (int i = 0; i < img_pro->map_tracker->rgb_points_vec.size(); i++)
+    {
+        rgbPoint *p_point = img_pro->map_tracker->rgb_points_vec[i];
+
+        if (p_point->N_rgb < map_options.pub_point_minimum_views) continue;
+        if (!p_point->hasSemanticLabel()) continue;
+
+        Eigen::Vector3d pos_world = p_point->getPosition();
+        Eigen::Vector3d pos_lidar = R_lidar_world * pos_world + t_lidar_world;
+
+        voxblox::PointSemanticInstanceType point;
+        point.x = static_cast<float>(pos_lidar.x());
+        point.y = static_cast<float>(pos_lidar.y());
+        point.z = static_cast<float>(pos_lidar.z());
+
+        // --- RGB FROM SEMANTIC LABEL (same logic as pubSemanticPoints) ---
+        const int semantic_label = p_point->getSemanticLabel();
+        cv::Scalar color = semanticLabelToColor(semantic_label);
+        point.r = static_cast<uint8_t>(color[2]);  // BGR -> RGB
+        point.g = static_cast<uint8_t>(color[1]);
+        point.b = static_cast<uint8_t>(color[0]);
+        point.a = 255;
+
+        // (Optional) If your PointSemanticInstanceType supports these fields in your build:
+        // point.semantic_label  = static_cast<uint32_t>(semantic_label);
+        // point.instance_label  = static_cast<uint32_t>(p_point->getInstanceId());
+
+        semantic_cloud.push_back(point);
+    }
+
+    sensor_msgs::PointCloud2 ros_msg;
+    pcl::toROSMsg(semantic_cloud, ros_msg);
+    ros_msg.header.stamp = ros::Time().fromSec(p_frame->time_sweep_end);
+    ros_msg.header.frame_id = "sensor1/os_sensor";
+    pub_cloud_semantic.publish(ros_msg);
+}
+
+void lioOptimization::threadPubSemanticPointsLidarFrame()
+{
+    int last_pub_map_index = -1000;
+    int sleep_time_after_pub = 10;
+
+    while (ros::ok())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        img_pro->map_tracker->mutex_frame_index->lock();
+        int updated_frame_index = img_pro->map_tracker->updated_frame_index;
+        img_pro->map_tracker->mutex_frame_index->unlock();
+
+        if (last_pub_map_index == updated_frame_index) continue;
+        last_pub_map_index = updated_frame_index;
+
+        if (all_cloud_frame.empty()) continue;
+        cloudFrame* p_frame = all_cloud_frame.back();
+
+        // World -> IMU
+        Eigen::Matrix3d R_world_imu = p_frame->p_state->rotation.toRotationMatrix();
+        Eigen::Vector3d t_world_imu = p_frame->p_state->translation;
+
+        Eigen::Matrix3d R_imu_world = R_world_imu.transpose();
+        Eigen::Vector3d t_imu_world = -R_imu_world * t_world_imu;
+
+        // IMU -> LiDAR
+        Eigen::Matrix3d R_lidar_imu = R_imu_lidar.transpose();
+        Eigen::Vector3d t_lidar_imu = -R_lidar_imu * t_imu_lidar;
+
+        // World -> LiDAR
+        Eigen::Matrix3d R_lidar_world = R_lidar_imu * R_imu_world;
+        Eigen::Vector3d t_lidar_world = R_lidar_imu * t_imu_world + t_lidar_imu;
+
+        pcl::PointCloud<voxblox::PointSemanticInstanceType> semantic_cloud;
+
+        img_pro->map_tracker->mutex_rgb_points_vec->lock();
+        int points_size = img_pro->map_tracker->rgb_points_vec.size();
+        img_pro->map_tracker->mutex_rgb_points_vec->unlock();
+
+        semantic_cloud.reserve(points_size);
+
+        for (int i = 0; i < points_size; i++)
+        {
+            img_pro->map_tracker->mutex_rgb_points_vec->lock();
+
+            rgbPoint *p_point = img_pro->map_tracker->rgb_points_vec[i];
+            int N_rgb = p_point->N_rgb;
+            bool has_semantic = p_point->hasSemanticLabel();
+
+            if (N_rgb < map_options.pub_point_minimum_views || !has_semantic)
+            {
+                img_pro->map_tracker->mutex_rgb_points_vec->unlock();
+                continue;
+            }
+
+            Eigen::Vector3d pos_world = p_point->getPosition();
+            int semantic_label = p_point->getSemanticLabel();
+            int instance_id = p_point->getInstanceId();
+
+            img_pro->map_tracker->mutex_rgb_points_vec->unlock();
+
+            Eigen::Vector3d pos_lidar = R_lidar_world * pos_world + t_lidar_world;
+
+            voxblox::PointSemanticInstanceType point;
+            point.x = static_cast<float>(pos_lidar.x());
+            point.y = static_cast<float>(pos_lidar.y());
+            point.z = static_cast<float>(pos_lidar.z());
+
+            // --- RGB FROM SEMANTIC LABEL (same logic as pubSemanticPoints) ---
+            cv::Scalar color = semanticLabelToColor(semantic_label);
+            point.r = static_cast<uint8_t>(color[2]); // BGR -> RGB
+            point.g = static_cast<uint8_t>(color[1]);
+            point.b = static_cast<uint8_t>(color[0]);
+            point.a = 255;
+
+            // (Optional) If supported by your typedef/struct:
+            // point.semantic_label = static_cast<uint32_t>(semantic_label);
+            // point.instance_label = static_cast<uint32_t>(instance_id);
+
+            semantic_cloud.push_back(point);
+        }
+
+        if (semantic_cloud.empty()) continue;
+
+        sensor_msgs::PointCloud2 ros_msg;
+        pcl::toROSMsg(semantic_cloud, ros_msg);
+        ros_msg.header.frame_id = "sensor1/os_sensor";
+        ros_msg.header.stamp = ros::Time::now();
+
+        pub_cloud_semantic_lidar.publish(ros_msg);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_after_pub));
+    }
+}
+
+
 void lioOptimization::addPointToPcl(pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_points, rgbPoint &point, cloudFrame *p_frame)
 {
     pcl::PointXYZI cloudTemp;
@@ -1688,6 +1846,61 @@ void lioOptimization::saveColorPoints()
     std::cout << "Total have " << point_count << " points." << std::endl;
     std::cout << "Now write to: " << pcd_path << std::endl; 
     pcl::io::savePCDFileBinary(pcd_path, pcd_rgb);
+}
+
+
+void lioOptimization::saveSemanticPoints()
+{
+    // Save semantic-colored point cloud (for visualization)
+    std::string pcd_path_colored = std::string(output_path + "/semantic_map.pcd");
+    std::cout << "Save semantic points to " << pcd_path_colored << std::endl;
+
+    pcl::PointCloud<pcl::PointXYZRGB> pcd_semantic;
+
+    long point_size = img_pro->map_tracker->rgb_points_vec.size();
+    pcd_semantic.resize(point_size);
+
+    long point_count = 0;
+
+    for (long i = point_size - 1; i > 0; i--)
+    {
+        img_pro->map_tracker->mutex_rgb_points_vec->lock();
+        int N_rgb = img_pro->map_tracker->rgb_points_vec[i]->N_rgb;
+        bool has_semantic = img_pro->map_tracker->rgb_points_vec[i]->hasSemanticLabel();
+        img_pro->map_tracker->mutex_rgb_points_vec->unlock();
+
+        if (N_rgb < map_options.pub_point_minimum_views)
+        {
+            continue;
+        }
+
+        // Skip points without semantic labels
+        if (!has_semantic)
+        {
+            continue;
+        }
+
+        img_pro->map_tracker->mutex_rgb_points_vec->lock();
+        
+        int semantic_label = img_pro->map_tracker->rgb_points_vec[i]->getSemanticLabel();
+        cv::Scalar color = semanticLabelToColor(semantic_label);
+        
+        pcd_semantic.points[point_count].x = img_pro->map_tracker->rgb_points_vec[i]->getPosition()[0];
+        pcd_semantic.points[point_count].y = img_pro->map_tracker->rgb_points_vec[i]->getPosition()[1];
+        pcd_semantic.points[point_count].z = img_pro->map_tracker->rgb_points_vec[i]->getPosition()[2];
+        pcd_semantic.points[point_count].r = static_cast<uint8_t>(color[2]);  // BGR to RGB
+        pcd_semantic.points[point_count].g = static_cast<uint8_t>(color[1]);
+        pcd_semantic.points[point_count].b = static_cast<uint8_t>(color[0]);
+        
+        img_pro->map_tracker->mutex_rgb_points_vec->unlock();
+        point_count++;
+    }
+
+    pcd_semantic.resize(point_count);
+
+    std::cout << "Total semantic points: " << point_count << std::endl;
+    std::cout << "Now write to: " << pcd_path_colored << std::endl; 
+    pcl::io::savePCDFileBinary(pcd_path_colored, pcd_semantic);
 }
 
 void lioOptimization::run()
@@ -1834,7 +2047,9 @@ void lioOptimization::run()
             }
         }
 
-        process(measurement.lidar_points, measurement.time_sweep.first, measurement.time_sweep.second, measurement.image, measurement.rendering);
+        process(measurement.lidar_points, measurement.time_sweep.first, measurement.time_sweep.second, measurement.image, 
+            measurement.semantic_masks, 
+            measurement.rendering);
 
         imu_states.clear();
         
@@ -1861,6 +2076,8 @@ int main(int argc, char** argv)
     //Semantic visualization thread
     std::thread visualization_semantic(&lioOptimization::threadPubSemanticPoints, &LIO);
 
+    std::thread visualization_semantic_lidar(&lioOptimization::threadPubSemanticPointsLidarFrame, &LIO); 
+
     ros::Rate rate(200);
     while (ros::ok())
     {
@@ -1872,9 +2089,11 @@ int main(int argc, char** argv)
     }
 
     LIO.saveColorPoints();
+    LIO.saveSemanticPoints(); // Save semantic-colored points
 
     visualization_map.join();
     visualization_semantic.join();  // Join semantic thread
+    visualization_semantic_lidar.join(); // Join semantic thread in lidar frame
 
     return 0;
 }

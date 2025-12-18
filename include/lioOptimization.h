@@ -60,6 +60,10 @@
 #include "utility.h"
 #include "parameters.h"
 
+//voxblox
+#include <voxblox/core/common.h>
+#include <global_segment_map/common.h>
+
 class imageProcessing;
 
 struct Measurements
@@ -215,7 +219,8 @@ private:
     ros::Publisher pub_odom;		// the pose of current sweep after LIO-optimization
     ros::Publisher pub_path;				// the position of current sweep after LIO-optimization for visualization
     ros::Publisher pub_cloud_color;
-    ros::Publisher pub_cloud_semantic ;
+    ros::Publisher pub_cloud_semantic ;   // In world frame (added)
+    ros::Publisher pub_cloud_semantic_lidar;     // In lidar frame (added)
     std::vector<std::shared_ptr<ros::Publisher>> pub_cloud_color_vec;
 
     ros::Subscriber sub_cloud_ori;   // the data of original point clouds from LiDAR sensor
@@ -349,7 +354,9 @@ public:
     // main loop
     std::vector<Measurements> getMeasurements();
 
-    void process(std::vector<point3D> &cut_sweep, double timestamp_begin, double timestamp_offset, cv::Mat &cur_image, bool to_rendering);
+    void process(std::vector<point3D> &cut_sweep, double timestamp_begin, double timestamp_offset, cv::Mat &cur_image, 
+        std::vector<std::tuple<cv::Mat, int, int32_t>> &semantic_masks,
+        bool to_rendering);
 
 	void run();
     // main loop
@@ -411,13 +418,16 @@ public:
     // publish result by ROS for visualization
 
     void saveColorPoints();
+    void saveSemanticPoints();  // save semantic points as pcd
 
     tf::TransformBroadcaster tfBroadcaster;
     tf::StampedTransform laserOdometryTrans;
 
     //Semantics modified
     void pubSemanticPoints(ros::Publisher &pub_cloud_semantic, cloudFrame *p_frame);
+    void pubSemanticPointsLidarFrame(ros::Publisher &pub_cloud_semantic, cloudFrame *p_frame);
     void threadPubSemanticPoints();
+    void threadPubSemanticPointsLidarFrame();
 };
 
 

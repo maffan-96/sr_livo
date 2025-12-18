@@ -60,6 +60,11 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>tf</build_depend>
   <build_depend>oneformer_pkg</build_depend>
+  <build_depend>gsm_node</build_depend>
+  <build_depend>voxblox</build_depend>
+  <build_depend>voxblox_msgs</build_depend>
+  <build_depend>voxblox_ros</build_depend>
+  <build_depend>global_segment_map</build_depend>
   <build_export_depend>eigen_conversions</build_export_depend>
   <build_export_depend>geometry_msgs</build_export_depend>
   <build_export_depend>nav_msgs</build_export_depend>
@@ -82,7 +87,11 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf</exec_depend>
   <exec_depend>oneformer_pkg</exec_depend>
-
+  <exec_depend>gsm_node</exec_depend>
+  <exec_depend>voxblox</exec_depend>
+  <exec_depend>voxblox_msgs</exec_depend>
+  <exec_depend>voxblox_ros</exec_depend>
+  <exec_depend>global_segment_map</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

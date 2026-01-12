@@ -1,0 +1,136 @@
+# PTv3 Integration for SR_LIVO
+# Add this to your main CMakeLists.txt
+
+# ============================================================================
+# Option to enable/disable PTv3
+# ============================================================================
+option(USE_PTv3 "Enable PTv3 feature extraction" ON)
+
+if(USE_PTv3)
+    message(STATUS "========================================")
+    message(STATUS "PTv3 Integration ENABLED")
+    message(STATUS "========================================")
+
+    # ========================================================================
+    # Find LibTorch
+    # ========================================================================
+
+    # Set LibTorch path (modify this to your installation)
+    set(CMAKE_PREFIX_PATH "/usr/local/libtorch" CACHE PATH "LibTorch installation path")
+
+    # Find Torch package
+    find_package(Torch REQUIRED)
+
+    if(TORCH_FOUND)
+        message(STATUS "✓ Found LibTorch")
+        message(STATUS "  Version: ${Torch_VERSION}")
+        message(STATUS "  Install prefix: ${TORCH_INSTALL_PREFIX}")
+
+        # Set C++ flags for Torch
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+        # Enable C++17 (required by LibTorch)
+        set(CMAKE_CXX_STANDARD 17)
+        set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+    else()
+        message(FATAL_ERROR "LibTorch not found! Please install from https://pytorch.org/")
+    endif()
+
+    # ========================================================================
+    # PTv3 Source Files
+    # ========================================================================
+
+    set(PTv3_SOURCES
+        src/ptv3FeatureExtractor.cpp
+        src/ptv3Integration.cpp
+    )
+
+    set(PTv3_HEADERS
+        include/ptv3FeatureExtractor.h
+        include/ptv3Integration.h
+    )
+
+    # ========================================================================
+    # Create PTv3 Library
+    # ========================================================================
+
+    add_library(ptv3_integration SHARED
+        ${PTv3_SOURCES}
+        ${PTv3_HEADERS}
+    )
+
+    # Include directories
+    target_include_directories(ptv3_integration PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+        ${TORCH_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+        ${PCL_INCLUDE_DIRS}
+    )
+
+    # Link libraries
+    target_link_libraries(ptv3_integration PUBLIC
+        ${TORCH_LIBRARIES}
+        ${PCL_LIBRARIES}
+        ${OpenCV_LIBS}
+    )
+
+    # Compile definitions
+    target_compile_definitions(ptv3_integration PUBLIC
+        USE_PTv3
+    )
+
+    # ========================================================================
+    # Link PTv3 to Main Executable
+    # ========================================================================
+
+    # Add PTv3 to sr_livo executable
+    target_link_libraries(sr_livo
+        ptv3_integration
+        # ... your existing libraries ...
+    )
+
+    # ========================================================================
+    # Installation
+    # ========================================================================
+
+    install(TARGETS ptv3_integration
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+
+    install(FILES ${PTv3_HEADERS}
+        DESTINATION include/sr_livo
+    )
+
+    # ========================================================================
+    # Copy Model Files (Optional)
+    # ========================================================================
+
+    # If you want to package model files with installation
+    # install(DIRECTORY ${PROJECT_SOURCE_DIR}/models/ptv3
+    #     DESTINATION share/sr_livo/models
+    #     PATTERN "*.pt"
+    # )
+
+    message(STATUS "PTv3 integration configured successfully!")
+    message(STATUS "========================================")
+
+else()
+    message(STATUS "PTv3 Integration DISABLED")
+    message(STATUS "Set USE_PTv3=ON to enable")
+endif()
+
+# ============================================================================
+# Build Instructions
+# ============================================================================
+
+# To build with PTv3:
+#   mkdir build && cd build
+#   cmake -DUSE_PTv3=ON -DCMAKE_PREFIX_PATH=/usr/local/libtorch ..
+#   make -j8
+
+# To build without PTv3:
+#   cmake -DUSE_PTv3=OFF ..
+#   make -j8

@@ -64,6 +64,17 @@ private:
     std::map<int, int> semantic_histogram; // Vote counts per class
     int N_semantic;                        // Number of semantic observations
 
+
+    //int segment_id_;  // ID of the supervoxel segment this point belongs to
+
+
+    // Geometric segmentation support
+    int segment_id_;                                    // ID of assigned segment
+    int final_semantic_label_;                          // Refined label from segmentation
+    int final_instance_id_;                             // Refined instance ID
+    std::unordered_map<int, float> semantic_histogram_; // Weighted label votes
+    int semantic_vote_count_;   
+
 public:
     int point_index;
 
@@ -93,9 +104,85 @@ public:
     //Semantic methods (modified on top of SR-LIVO's rgbPoint)
     int getSemanticLabel() const { return semantic_label; }
     void updateSemanticLabel(int label);
-    bool hasSemanticLabel() const { return N_semantic > 0; }
+    //bool hasSemanticLabel() const { return N_semantic > 0; }
     void setInstanceId(int id) { instance_id = id; }
     int getInstanceId() const { return instance_id; }
+
+
+
+    //New changes for supervoxel segmentation
+    // void setSegmentId(int id) { segment_id_ = id; }
+    // int getSegmentId() const { return segment_id_; }
+
+
+    // new changes for geometric segmentation
+
+
+        // Geometric segmentation support
+    // int segment_id_;                                    // ID of assigned segment
+    // int final_semantic_label_;                          // Refined label from segmentation
+    // int final_instance_id_;                             // Refined instance ID
+    // std::unordered_map<int, float> semantic_histogram_; // Weighted label votes
+    // int semantic_vote_count_;                           // Total vote count
+
+// ============================================================================
+// ADD TO PUBLIC METHODS of rgbPoint:
+// ============================================================================
+
+    // Segment assignment
+    int getSegmentId() const { return segment_id_; }
+    void setSegmentId(int id) { segment_id_ = id; }
+    bool hasSegmentAssignment() const { return segment_id_ > 0; }
+    
+    // Weighted semantic voting
+    void addSemanticVote(int label, float weight) {
+        if (label <= 0 || weight <= 0) return;
+        semantic_histogram_[label] += weight;
+        semantic_vote_count_++;
+        
+        // Update current label to majority
+        float max_votes = 0;
+        int best_label = 0;
+        for (auto it = semantic_histogram_.begin(); it != semantic_histogram_.end(); ++it) {
+            if (it->second > max_votes) {
+                max_votes = it->second;
+                best_label = it->first;
+            }
+        }
+        semantic_label = best_label;
+    }
+    
+    // Final refined labels (from geometric segmentation)
+    int getFinalSemanticLabel() const { return final_semantic_label_; }
+    int getFinalInstanceId() const { return final_instance_id_; }
+    void setFinalSemanticLabel(int label) { final_semantic_label_ = label; }
+    void setFinalInstanceId(int id) { final_instance_id_ = id; }
+    
+    // Finalize label from internal voting (fallback when no segment)
+    void finalizeSemanticLabel() {
+        if (semantic_histogram_.empty()) {
+            final_semantic_label_ = semantic_label;
+            final_instance_id_ = instance_id;
+            return;
+        }
+        
+        float max_votes = 0;
+        int best_label = 0;
+        for (auto it = semantic_histogram_.begin(); it != semantic_histogram_.end(); ++it) {
+            if (it->second > max_votes) {
+                max_votes = it->second;
+                best_label = it->first;
+            }
+        }
+        final_semantic_label_ = best_label;
+        final_instance_id_ = instance_id;
+    }
+    
+    // Check if has any semantic label
+    bool hasSemanticLabel() const { 
+        return semantic_label > 0 || final_semantic_label_ > 0; 
+    }
+ 
 
 };
 

@@ -85,5 +85,7 @@ add_executable(livo_node
 		src/state.cpp
 		src/eskfEstimator.cpp
 		src/utility.cpp
-		src/parameters.cpp)
+		src/parameters.cpp
+                src/semanticSegment.cpp 
+                src/geometricSegmentation.cpp) # new changes for supervoxel segmentation
 target_link_libraries(livo_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBRARIES} robin_map)

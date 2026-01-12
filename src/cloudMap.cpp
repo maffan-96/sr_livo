@@ -23,6 +23,12 @@ void rgbPoint::reset()
     instance_id = 0;
     N_semantic = 0;
     semantic_histogram.clear();
+
+    //Initialize geometric segmentation fields
+    segment_id_ = 0;
+    final_semantic_label_ = 0;
+    final_instance_id_ = 0;
+    semantic_vote_count_ = 0;
 }
 
 void rgbPoint::setPosition(const Eigen::Vector3d &position_)

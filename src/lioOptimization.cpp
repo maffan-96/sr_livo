@@ -1,6 +1,7 @@
 #include "lioOptimization.h"
 
 #include <oneformer_pkg/segmentation_voxblox.h> //define segmentation type compatible with voxblox instance labels
+#include <tuple>
 
 cloudFrame::cloudFrame(std::vector<point3D> &point_frame_, state *p_state_)
 {
@@ -35,13 +36,12 @@ int cloudFrame::getSemantic(const double &u, const double &v, int &instance_id)
     int v_i = static_cast<int>(std::round(v));
     
     // Check each mask (later masks override earlier ones)
-    for (const auto& [mask, label, inst_id] : semantic_masks) {
-        if (u_i >= 0 && u_i < mask.cols && v_i >= 0 && v_i < mask.rows) {
-            if (mask.at<uint8_t>(v_i, u_i) == 255) {
-                instance_id = inst_id;
-                return label;
-            }
-        }
+    for (size_t m = 0; m < semantic_masks.size(); m++) {
+        const cv::Mat& mask = std::get<0>(semantic_masks[m]);
+        int label = std::get<1>(semantic_masks[m]);
+        int32_t inst_id = std::get<2>(semantic_masks[m]);
+            
+        
     }
     
     // No mask matched - return background label

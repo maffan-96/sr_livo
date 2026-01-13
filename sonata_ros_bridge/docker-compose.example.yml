@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # ROS Master
+  roscore:
+    image: ros:noetic-ros-core
+    command: roscore
+    network_mode: host
+    restart: unless-stopped
+
+  # SR_LIVO Node
+  srlivo:
+    image: srlivo:latest  # Replace with your SR_LIVO Docker image
+    depends_on:
+      - roscore
+    network_mode: host
+    volumes:
+      - ./sr_livo:/workspace/sr_livo:ro
+      - ./data:/workspace/data:ro  # Mount your dataset
+      - ./output:/workspace/output  # Output directory
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+    command: >
+      bash -c "source /opt/ros/noetic/setup.bash &&
+               roslaunch sr_livo livo_ntu.launch"
+    restart: unless-stopped
+
+  # Sonata Bridge Node
+  sonata_bridge:
+    image: ptv3_ros:latest  # Replace with your PTv3+ROS Docker image
+    depends_on:
+      - roscore
+      - srlivo
+    network_mode: host
+    runtime: nvidia  # Requires nvidia-docker
+    volumes:
+      - ./sr_livo:/workspace/sr_livo:ro
+      - ~/.cache/sonata:/root/.cache/sonata  # Cache for pre-trained models
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    command: >
+      bash -c "source /opt/ros/noetic/setup.bash &&
+               source /workspace/catkin_ws/devel/setup.bash &&
+               roslaunch sonata_ros_bridge sonata_bridge.launch"
+    restart: unless-stopped
+
+  # Optional: RViz for visualization
+  rviz:
+    image: ros:noetic-ros-base
+    depends_on:
+      - roscore
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./rviz_config.rviz:/workspace/config.rviz:ro
+    command: >
+      bash -c "source /opt/ros/noetic/setup.bash &&
+               rviz -d /workspace/config.rviz"
+    privileged: true
+
+# For GPU access with Docker Compose
+# Make sure you have nvidia-docker2 installed

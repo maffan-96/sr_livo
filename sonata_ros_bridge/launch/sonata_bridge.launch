@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Arguments -->
+    <arg name="config_file" default="$(find sonata_ros_bridge)/config/sonata_params.yaml" />
+    <arg name="input_topic" default="/cloud_registered_current" />
+    <arg name="output_topic" default="/sonata/semantic_cloud" />
+    <arg name="device" default="cuda" />
+    <arg name="downsample_voxel" default="0.02" />
+
+    <!-- Sonata Segmentation Node -->
+    <node name="sonata_segmentation_node" pkg="sonata_ros_bridge" type="sonata_segmentation_node.py" output="screen">
+        <!-- Load parameters from YAML file -->
+        <rosparam command="load" file="$(arg config_file)" />
+
+        <!-- Override with launch arguments if provided -->
+        <param name="input_topic" value="$(arg input_topic)" />
+        <param name="output_topic" value="$(arg output_topic)" />
+        <param name="device" value="$(arg device)" />
+        <param name="downsample_voxel" value="$(arg downsample_voxel)" />
+    </node>
+
+</launch>

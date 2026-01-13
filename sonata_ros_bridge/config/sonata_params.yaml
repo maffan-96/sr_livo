@@ -1,0 +1,24 @@
+# Sonata ROS Bridge Configuration
+
+# ROS Topics
+input_topic: "/cloud_registered_current"  # Input point cloud from SR_LIVO
+output_topic: "/sonata/semantic_cloud"     # Output semantic point cloud
+
+# Model Configuration
+model_name: "facebook/sonata"              # Hugging Face model ID
+device: "cuda"                             # 'cuda' or 'cpu'
+inference_mode: "feature"                  # 'feature' or 'segmentation'
+
+# Point Cloud Processing
+downsample_voxel: 0.02                     # Voxel size for downsampling (meters), 0 to disable
+use_normals: true                          # Estimate and use surface normals
+use_colors: true                           # Use RGB color information
+batch_size: 1                              # Batch size for inference
+
+# Semantic Segmentation
+num_classes: 20                            # Number of semantic classes (ScanNet: 20)
+
+# Alternative input topics (comment/uncomment as needed):
+# input_topic: "/cloud_global_map"         # Global map from SR_LIVO
+# input_topic: "/color_global_map"         # Color global map from SR_LIVO
+# input_topic: "/semantic_global_map"      # Existing semantic map (for refinement)

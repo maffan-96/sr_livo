@@ -80,6 +80,53 @@ git clone https://github.com/ZikangYuan/sr_livo.git
 cd ..
 catkin_make
 ```
+
+## Sonata (PTv3) Integration
+
+SR_LIVO now includes a **ROS bridge for Sonata/PTv3** semantic segmentation! This provides 3D semantic segmentation without modifying SR_LIVO's source code.
+
+### Features
+- **Zero SR_LIVO modifications** - Standalone ROS node
+- **Real-time 3D semantic segmentation** using pre-trained Sonata models
+- **Docker-ready** integration with your PTv3 environment
+- **Flexible deployment** - Works alongside SR_LIVO seamlessly
+
+### Quick Start
+
+```bash
+# 1. Setup the bridge
+cd sonata_ros_bridge
+./setup.sh
+
+# 2. Start SR_LIVO (in one terminal)
+roslaunch sr_livo livo_ntu.launch
+
+# 3. Start Sonata bridge (in another terminal, inside PTv3 Docker)
+roslaunch sonata_ros_bridge sonata_bridge.launch
+
+# 4. Visualize semantic point cloud in RViz
+# Topic: /sonata/semantic_cloud
+```
+
+### Documentation
+
+- **[Integration Guide](sonata_ros_bridge/INTEGRATION_GUIDE.md)** - Complete setup and configuration
+- **[README](sonata_ros_bridge/README.md)** - Package overview and features
+- **[Docker Integration](sonata_ros_bridge/docker-compose.example.yml)** - Docker deployment examples
+
+### Citation
+
+If you use Sonata in your research:
+
+```bibtex
+@inproceedings{wu2025sonata,
+  title={Sonata: Self-Supervised Learning of Reliable Point Representations},
+  author={Wu, Xiaoyang and others},
+  booktitle={CVPR},
+  year={2025}
+}
+```
+
 ## Run on Public Datasets
 
 Noted:

@@ -1,0 +1,24 @@
+# Python dependencies for Sonata ROS Bridge
+
+# Core dependencies
+numpy>=1.19.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Sonata (PTv3) - install from source or PyPI
+# Option 1: From PyPI (if available)
+# sonata-ssl
+
+# Option 2: From source (recommended)
+# git+https://github.com/facebookresearch/sonata.git
+
+# For point cloud processing
+scikit-learn>=0.24.0  # For normal estimation with PCA and k-NN
+
+# ROS dependencies (installed via apt, listed here for reference)
+# sensor_msgs (ROS package)
+# rospy (ROS package)
+
+# Optional dependencies for improved performance
+# open3d>=0.15.0  # Alternative for point cloud processing
+# scipy>=1.7.0    # Additional scientific computing tools

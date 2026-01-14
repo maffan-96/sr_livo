@@ -1244,7 +1244,8 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
     }
 
     publish_odometry(pub_odom, p_frame);
-    publish_path(pub_path, p_frame);   
+    publish_path(pub_path, p_frame);
+    publishCloudBody(pub_cloud_body, p_frame);  // Publish current sweep in body frame
 
     if(debug_output)
     {
@@ -1363,6 +1364,30 @@ void lioOptimization::publishCLoudWorld(ros::Publisher &pub_cloud_world, pcl::Po
     laserCloudmsg.header.stamp = ros::Time().fromSec(p_frame->time_sweep_end);
     laserCloudmsg.header.frame_id = "camera_init";
     pub_cloud_world.publish(laserCloudmsg);
+}
+
+void lioOptimization::publishCloudBody(ros::Publisher &pub_cloud_body, cloudFrame* p_frame)
+{
+    // Convert current sweep points (in body frame) to PCL format
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_body(new pcl::PointCloud<pcl::PointXYZI>());
+    cloud_body->reserve(p_frame->point_frame.size());
+
+    for (const auto &point : p_frame->point_frame)
+    {
+        pcl::PointXYZI pcl_point;
+        pcl_point.x = point.point.x();
+        pcl_point.y = point.point.y();
+        pcl_point.z = point.point.z();
+        pcl_point.intensity = point.alpha_time;
+        cloud_body->points.push_back(pcl_point);
+    }
+
+    // Publish point cloud in body frame
+    sensor_msgs::PointCloud2 cloud_msg;
+    pcl::toROSMsg(*cloud_body, cloud_msg);
+    cloud_msg.header.stamp = ros::Time().fromSec(p_frame->time_sweep_end);
+    cloud_msg.header.frame_id = "body";  // Body frame (IMU frame)
+    pub_cloud_body.publish(cloud_msg);
 }
 
 void lioOptimization::pubColorPoints(ros::Publisher &pub_cloud_rgb, cloudFrame *p_frame)

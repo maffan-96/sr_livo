@@ -409,6 +409,8 @@ public:
 
     void publishCLoudWorld(ros::Publisher & pub_cloud_world, pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudFullRes, cloudFrame* p_frame);
 
+    void publishCloudBody(ros::Publisher &pub_cloud_body, cloudFrame* p_frame);
+
     pcl::PointCloud<pcl::PointXYZI>::Ptr points_world;
     void publish_odometry(const ros::Publisher & pubOdomAftMapped, cloudFrame *p_frame);
 

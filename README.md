@@ -83,15 +83,27 @@ catkin_make
 
 ## Sonata (PTv3) Integration
 
-SR_LIVO now includes a **ROS bridge for Sonata/PTv3 feature extraction**! This provides **self-supervised 3D point cloud understanding** through feature extraction and PCA visualization, without modifying SR_LIVO's source code.
+SR_LIVO now includes a **ROS bridge for Sonata/PTv3 feature extraction**! This provides **self-supervised 3D point cloud understanding** through feature extraction and PCA visualization.
 
 ### Features
-- **Zero SR_LIVO modifications** - Standalone ROS node
+- **Minimal integration** - Standalone ROS node with small SR_LIVO modification
+- **Real-time processing** - Uses current LiDAR sweep in body frame
 - **Feature extraction** using pre-trained Sonata (PTv3) models
 - **PCA visualization** - Visualize learned features as RGB colors
 - **Self-supervised** - No labeled data required
 - **Docker-ready** integration with your PTv3 environment
 - **Flexible deployment** - Works alongside SR_LIVO seamlessly
+
+### What Was Modified in SR_LIVO?
+
+SR_LIVO now publishes the **current LiDAR sweep** (in body frame) to `/cloud_registered_current`:
+- **Added**: `publishCloudBody()` function
+- **Topic**: `/cloud_registered_current`
+- **Frame**: Body frame (IMU frame after motion compensation)
+- **Frequency**: Published every frame with odometry
+- **Purpose**: Enables real-time feature extraction on current sweep
+
+This is a minimal modification (30 lines) that doesn't affect SR_LIVO's core functionality.
 
 ### Quick Start
 

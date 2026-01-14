@@ -1,15 +1,15 @@
 # Sonata ROS Bridge for SR_LIVO
 
-A minimal ROS bridge to integrate **Sonata** (PTv3-based feature extraction) with **SR_LIVO** for **self-supervised 3D point cloud understanding** without modifying the SR_LIVO codebase.
+A minimal ROS bridge to integrate **Sonata** (PTv3-based feature extraction) with **SR_LIVO** for **self-supervised 3D point cloud understanding**.
 
 ## Overview
 
 This package provides a standalone ROS node that:
-- Subscribes to point clouds published by SR_LIVO
+- Subscribes to point clouds published by SR_LIVO (`/cloud_registered_current`)
 - Runs Sonata/PTv3 feature extraction on 3D point clouds
 - **Visualizes learned features using PCA** (Principal Component Analysis)
 - Publishes point clouds colored by PCA components to reveal semantic structure
-- Requires **zero modifications** to SR_LIVO source code
+- **Note**: SR_LIVO was minimally modified (30 lines) to publish body frame clouds - see [SR_LIVO_MODIFICATION.md](../SR_LIVO_MODIFICATION.md)
 
 ## Architecture
 
@@ -24,8 +24,8 @@ SR_LIVO → Point Cloud → Sonata Bridge → Feature Extraction → PCA → Col
 - **Feature Extraction**: Extract rich representations using pre-trained Sonata models
 - **PCA Visualization**: Visualize high-dimensional features as RGB colors
 - **Self-Supervised**: No labeled data required, works on any point cloud
-- **Minimal Integration**: Standalone node, no SR_LIVO modifications needed
-- **Flexible Input**: Subscribe to any SR_LIVO point cloud topic
+- **Minimal Integration**: Standalone node with small SR_LIVO modification (30 lines)
+- **Real-time Processing**: Uses current LiDAR sweep in body frame
 - **Efficient Processing**: Voxel downsampling for real-time performance
 - **Docker Ready**: Works with your existing PTv3 Docker environment
 - **Configurable**: YAML-based configuration for all parameters

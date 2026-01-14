@@ -13,15 +13,32 @@ import sensor_msgs.point_cloud2 as pc2
 import struct
 import time
 
+SONATA_AVAILABLE = False
+Point = None
+
 try:
     import sonata
     import sonata.model
-    from pointcept.models.point import Point
     SONATA_AVAILABLE = True
+
+    # Try to import Point class from various possible locations
+    try:
+        from pointcept.models.point import Point
+    except ImportError:
+        try:
+            from sonata.models.point import Point
+        except ImportError:
+            try:
+                # Some versions may have it here
+                import pointcept
+                Point = pointcept.Point
+            except (ImportError, AttributeError):
+                rospy.logwarn("Point class not found, will use dict format for model input")
+                Point = None
+
 except ImportError as e:
     rospy.logwarn(f"Sonata not available: {e}. Install sonata package for inference.")
     SONATA_AVAILABLE = False
-    Point = None
 
 try:
     from sklearn.decomposition import PCA
@@ -216,23 +233,32 @@ class SonataFeatureNode:
             normal_tensor = torch.from_numpy(normals).to(self.device)
             batch_tensor = torch.zeros(len(coords), dtype=torch.long).to(self.device)
 
-            # Create Point object (required by pointcept/Sonata)
-            if Point is not None:
-                # Concatenate features: [coord, color, normal]
-                feat = torch.cat([color_tensor, normal_tensor], dim=-1)
+            # Concatenate features: [color, normal] = 6 channels
+            feat = torch.cat([color_tensor, normal_tensor], dim=-1)
 
-                point = Point(
-                    coord=coord_tensor,
-                    feat=feat,
-                    batch=batch_tensor
-                )
-                data_dict = point
+            # Try Point object first (required by most Sonata/PTv3 versions)
+            if Point is not None:
+                try:
+                    point = Point(
+                        coord=coord_tensor,
+                        feat=feat,
+                        batch=batch_tensor
+                    )
+                    data_dict = point
+                except Exception as e:
+                    rospy.logwarn_once(f"Failed to create Point object: {e}, trying dict format")
+                    # Fallback to dict format
+                    data_dict = {
+                        'coord': coord_tensor,
+                        'feat': feat,
+                        'batch': batch_tensor,
+                    }
             else:
-                # Fallback to dict format
+                # Point class not available, try dict format
+                rospy.logwarn_once("Point class not available, using dict format (may not work with all Sonata versions)")
                 data_dict = {
                     'coord': coord_tensor,
-                    'color': color_tensor,
-                    'normal': normal_tensor,
+                    'feat': feat,
                     'batch': batch_tensor,
                 }
 

@@ -16,10 +16,12 @@ import time
 try:
     import sonata
     import sonata.model
+    from pointcept.models.point import Point
     SONATA_AVAILABLE = True
-except ImportError:
-    rospy.logwarn("Sonata not available. Install sonata package for inference.")
+except ImportError as e:
+    rospy.logwarn(f"Sonata not available: {e}. Install sonata package for inference.")
     SONATA_AVAILABLE = False
+    Point = None
 
 try:
     from sklearn.decomposition import PCA
@@ -61,6 +63,12 @@ class SonataFeatureNode:
         self.features_buffer = []
         self.buffer_size = rospy.get_param('~pca_buffer_size', 10)  # Number of frames to buffer for PCA
 
+        # Accumulated visualization buffer
+        self.viz_buffer_size = rospy.get_param('~viz_buffer_size', 50)  # Number of frames to accumulate for visualization
+        self.accumulated_coords = []
+        self.accumulated_pca_colors = []
+        self.accumulated_colors = []
+
         # Load model
         self.model = None
         if SONATA_AVAILABLE:
@@ -87,6 +95,7 @@ class SonataFeatureNode:
         rospy.loginfo(f"  Model: {self.model_name}")
         rospy.loginfo(f"  PCA components: {self.pca_components}")
         rospy.loginfo(f"  PCA buffer size: {self.buffer_size} frames")
+        rospy.loginfo(f"  Visualization accumulation: {self.viz_buffer_size} frames")
 
     def load_model(self):
         """Load Sonata pre-trained model"""
@@ -201,20 +210,31 @@ class SonataFeatureNode:
             return np.random.randn(len(coords), 256).astype(np.float32)
 
         try:
-            # Prepare input data
-            data_dict = {
-                'coord': coords,
-                'color': colors,
-                'normal': normals,
-            }
+            # Prepare input tensors
+            coord_tensor = torch.from_numpy(coords).to(self.device)
+            color_tensor = torch.from_numpy(colors).to(self.device)
+            normal_tensor = torch.from_numpy(normals).to(self.device)
+            batch_tensor = torch.zeros(len(coords), dtype=torch.long).to(self.device)
 
-            # Move to device
-            for key in data_dict:
-                data_dict[key] = torch.from_numpy(data_dict[key]).to(self.device)
+            # Create Point object (required by pointcept/Sonata)
+            if Point is not None:
+                # Concatenate features: [coord, color, normal]
+                feat = torch.cat([color_tensor, normal_tensor], dim=-1)
 
-            # Add batch dimension if needed
-            if 'batch' not in data_dict:
-                data_dict['batch'] = torch.zeros(len(coords), dtype=torch.long).to(self.device)
+                point = Point(
+                    coord=coord_tensor,
+                    feat=feat,
+                    batch=batch_tensor
+                )
+                data_dict = point
+            else:
+                # Fallback to dict format
+                data_dict = {
+                    'coord': coord_tensor,
+                    'color': color_tensor,
+                    'normal': normal_tensor,
+                    'batch': batch_tensor,
+                }
 
             # Run inference
             with torch.no_grad():
@@ -373,7 +393,7 @@ class SonataFeatureNode:
             features_ds = self.extract_features(coords_ds, colors_ds, normals_ds)
             rospy.loginfo(f"Extracted features shape: {features_ds.shape}")
 
-            # Apply PCA for visualization
+            # Apply PCA for visualization (on current frame)
             pca_features = self.apply_pca(features_ds)
 
             if pca_features is not None:
@@ -383,13 +403,29 @@ class SonataFeatureNode:
                 # Use first 3 PCA components as RGB
                 pca_colors = pca_features_full[:, :3] if pca_features_full.shape[1] >= 3 else np.tile(pca_features_full[:, 0:1], (1, 3))
 
-                # Publish PCA-colored point cloud
-                pca_cloud = self.numpy_to_pointcloud2_rgb(
-                    coords, pca_colors, msg.header.frame_id, msg.header.stamp
-                )
-                self.pub_pca.publish(pca_cloud)
+                # Accumulate points for visualization
+                self.accumulated_coords.append(coords)
+                self.accumulated_pca_colors.append(pca_colors)
+                self.accumulated_colors.append(colors)
 
-            # Publish original point cloud with features (for debugging)
+                # Keep buffer size limited
+                if len(self.accumulated_coords) > self.viz_buffer_size:
+                    self.accumulated_coords.pop(0)
+                    self.accumulated_pca_colors.pop(0)
+                    self.accumulated_colors.pop(0)
+
+                # Create accumulated point cloud for PCA visualization
+                if len(self.accumulated_coords) > 0:
+                    all_coords = np.vstack(self.accumulated_coords)
+                    all_pca_colors = np.vstack(self.accumulated_pca_colors)
+
+                    # Publish accumulated PCA-colored point cloud
+                    pca_cloud = self.numpy_to_pointcloud2_rgb(
+                        all_coords, all_pca_colors, msg.header.frame_id, msg.header.stamp
+                    )
+                    self.pub_pca.publish(pca_cloud)
+
+            # Publish current frame with original colors (not accumulated)
             feature_cloud = self.numpy_to_pointcloud2_rgb(
                 coords, colors, msg.header.frame_id, msg.header.stamp
             )

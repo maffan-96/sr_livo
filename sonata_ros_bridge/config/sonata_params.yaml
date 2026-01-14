@@ -19,6 +19,7 @@ use_colors: true                           # Use RGB color information
 pca_components: 3                          # Number of PCA components (use 3 for RGB visualization)
 normalize_features: true                   # Normalize features before PCA
 pca_buffer_size: 10                        # Number of frames to buffer for PCA fitting
+viz_buffer_size: 50                        # Number of frames to accumulate for visualization (PCA cloud will show accumulated points)
 
 # Alternative input topics (comment/uncomment as needed):
 # input_topic: "/cloud_global_map"         # Global map from SR_LIVO

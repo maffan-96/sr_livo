@@ -65,21 +65,25 @@ Ensure SR_LIVO is running and publishing point clouds on topics like:
 - `/color_global_map` (color global map)
 
 ### 2. Sonata/PTv3 Environment
-You mentioned you already have a Docker with PTv3 dependencies. Ensure it includes:
 
+**⚠️ IMPORTANT:** You need to install **Pointcept** (the underlying library for PTv3/Sonata).
+
+**See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.**
+
+Quick install (inside your Docker container):
 ```bash
-# Inside your Docker container
+# Install Pointcept
+git clone https://github.com/Pointcept/Pointcept.git
+cd Pointcept
+pip install -e .
+
+# Install other dependencies
 pip install torch torchvision
 pip install sonata-ssl  # Or install from source
-pip install scikit-learn  # For normal estimation
+pip install scikit-learn  # For normal estimation and PCA
 ```
 
-Alternatively, install Sonata from source:
-```bash
-git clone https://github.com/facebookresearch/sonata.git
-cd sonata
-pip install -e .
-```
+If you get the error `No module named 'pointcept'`, see [INSTALLATION.md](INSTALLATION.md) for solutions.
 
 ### 3. ROS Dependencies
 ```bash
@@ -290,6 +294,20 @@ use_colors: true
 ```
 
 ## Troubleshooting
+
+### Issue: "No module named 'pointcept'"
+**Solution**: Install Pointcept (required dependency). See **[INSTALLATION.md](INSTALLATION.md)** for detailed instructions:
+```bash
+git clone https://github.com/Pointcept/Pointcept.git
+cd Pointcept
+pip install -e .
+```
+
+### Issue: "'Point' object is not callable"
+**Solution**: This error has been fixed in the latest version. Make sure you:
+1. Pull the latest code from the repository
+2. Install Pointcept (see above)
+3. Restart the node
 
 ### Issue: "Sonata not available"
 **Solution**: Install Sonata in your Python environment:

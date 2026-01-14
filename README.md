@@ -83,11 +83,13 @@ catkin_make
 
 ## Sonata (PTv3) Integration
 
-SR_LIVO now includes a **ROS bridge for Sonata/PTv3** semantic segmentation! This provides 3D semantic segmentation without modifying SR_LIVO's source code.
+SR_LIVO now includes a **ROS bridge for Sonata/PTv3 feature extraction**! This provides **self-supervised 3D point cloud understanding** through feature extraction and PCA visualization, without modifying SR_LIVO's source code.
 
 ### Features
 - **Zero SR_LIVO modifications** - Standalone ROS node
-- **Real-time 3D semantic segmentation** using pre-trained Sonata models
+- **Feature extraction** using pre-trained Sonata (PTv3) models
+- **PCA visualization** - Visualize learned features as RGB colors
+- **Self-supervised** - No labeled data required
 - **Docker-ready** integration with your PTv3 environment
 - **Flexible deployment** - Works alongside SR_LIVO seamlessly
 
@@ -101,16 +103,25 @@ cd sonata_ros_bridge
 # 2. Start SR_LIVO (in one terminal)
 roslaunch sr_livo livo_ntu.launch
 
-# 3. Start Sonata bridge (in another terminal, inside PTv3 Docker)
-roslaunch sonata_ros_bridge sonata_bridge.launch
+# 3. Start Sonata feature extraction (in another terminal, inside PTv3 Docker)
+roslaunch sonata_ros_bridge sonata_feature_bridge.launch
 
-# 4. Visualize semantic point cloud in RViz
-# Topic: /sonata/semantic_cloud
+# 4. Visualize PCA-colored point cloud in RViz
+# Topic: /sonata/pca_cloud (colored by learned features)
 ```
+
+### What is PCA Visualization?
+
+The bridge extracts high-dimensional features (256-512D) from Sonata and projects them to 3D using PCA. Points are then colored by these 3 principal components:
+- **Similar colors** = similar learned semantic/geometric properties
+- **Different colors** = distinct structures or object types
+
+This reveals the **semantic structure** learned by Sonata without requiring any labels!
 
 ### Documentation
 
-- **[Integration Guide](sonata_ros_bridge/INTEGRATION_GUIDE.md)** - Complete setup and configuration
+- **[Feature Extraction Guide](sonata_ros_bridge/FEATURE_EXTRACTION_GUIDE.md)** - Complete guide to PCA visualization
+- **[Integration Guide](sonata_ros_bridge/INTEGRATION_GUIDE.md)** - Setup and configuration
 - **[README](sonata_ros_bridge/README.md)** - Package overview and features
 - **[Docker Integration](sonata_ros_bridge/docker-compose.example.yml)** - Docker deployment examples
 

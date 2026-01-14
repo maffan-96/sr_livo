@@ -1,30 +1,60 @@
 # Sonata ROS Bridge for SR_LIVO
 
-A minimal ROS bridge to integrate **Sonata** (PTv3-based 3D semantic segmentation) with **SR_LIVO** without modifying the SR_LIVO codebase.
+A minimal ROS bridge to integrate **Sonata** (PTv3-based feature extraction) with **SR_LIVO** for **self-supervised 3D point cloud understanding** without modifying the SR_LIVO codebase.
 
 ## Overview
 
 This package provides a standalone ROS node that:
 - Subscribes to point clouds published by SR_LIVO
-- Runs Sonata/PTv3 inference for 3D semantic segmentation
-- Publishes semantically labeled point clouds
+- Runs Sonata/PTv3 feature extraction on 3D point clouds
+- **Visualizes learned features using PCA** (Principal Component Analysis)
+- Publishes point clouds colored by PCA components to reveal semantic structure
 - Requires **zero modifications** to SR_LIVO source code
 
 ## Architecture
 
 ```
-SR_LIVO → Point Cloud → Sonata Bridge → Semantic Point Cloud
-                            ↓
-                    PTv3 Inference (Docker)
+SR_LIVO → Point Cloud → Sonata Bridge → Feature Extraction → PCA → Colored Point Cloud
+                            ↓                                      ↓
+                    PTv3 Encoder (Docker)                  RGB from PC1,PC2,PC3
 ```
 
 ## Features
 
+- **Feature Extraction**: Extract rich representations using pre-trained Sonata models
+- **PCA Visualization**: Visualize high-dimensional features as RGB colors
+- **Self-Supervised**: No labeled data required, works on any point cloud
 - **Minimal Integration**: Standalone node, no SR_LIVO modifications needed
 - **Flexible Input**: Subscribe to any SR_LIVO point cloud topic
 - **Efficient Processing**: Voxel downsampling for real-time performance
 - **Docker Ready**: Works with your existing PTv3 Docker environment
 - **Configurable**: YAML-based configuration for all parameters
+
+## Modes of Operation
+
+### 1. Feature Extraction + PCA Visualization (Primary Mode) ✨
+
+Extracts features and visualizes them using PCA:
+- Input: 3D point cloud (xyz, rgb, normals)
+- Output: Point cloud colored by first 3 PCA components
+- Use case: Understanding learned semantic structure, scene analysis
+
+```bash
+roslaunch sonata_ros_bridge sonata_feature_bridge.launch
+```
+
+**Output topics:**
+- `/sonata/pca_cloud` - Point cloud colored by PCA (main visualization)
+- `/sonata/feature_cloud` - Original point cloud (reference)
+
+### 2. Semantic Segmentation (Legacy Mode)
+
+For semantic segmentation instead of features:
+```bash
+roslaunch sonata_ros_bridge sonata_bridge.launch
+```
+
+**Note:** Requires a fine-tuned segmentation model (not just pre-trained Sonata)
 
 ## Prerequisites
 
@@ -74,36 +104,54 @@ source devel/setup.bash
 ### 2. Make Scripts Executable
 
 ```bash
-chmod +x ~/catkin_ws/src/sr_livo/sonata_ros_bridge/scripts/sonata_segmentation_node.py
+chmod +x ~/catkin_ws/src/sr_livo/sonata_ros_bridge/scripts/*.py
 ```
 
 ## Usage
 
-### Basic Usage
+### Feature Extraction Mode (Recommended)
 
 1. **Start SR_LIVO** (in one terminal):
 ```bash
 roslaunch sr_livo livo_ntu.launch
 ```
 
-2. **Start Sonata Bridge** (in another terminal, inside your PTv3 Docker):
+2. **Start Sonata Feature Extraction** (in another terminal, inside your PTv3 Docker):
 ```bash
-roslaunch sonata_ros_bridge sonata_bridge.launch
+roslaunch sonata_ros_bridge sonata_feature_bridge.launch
 ```
+
+3. **Visualize in RViz**:
+```bash
+rosrun rviz rviz
+
+# Add PointCloud2 display
+# Topic: /sonata/pca_cloud
+# Color Transformer: RGB8
+```
+
+You should see the point cloud colored by PCA components, revealing the learned semantic structure!
 
 ### With Custom Parameters
 
 ```bash
-roslaunch sonata_ros_bridge sonata_bridge.launch \
+roslaunch sonata_ros_bridge sonata_feature_bridge.launch \
     input_topic:=/cloud_registered_current \
-    output_topic:=/sonata/semantic_cloud \
+    output_pca_topic:=/sonata/pca_cloud \
     device:=cuda \
-    downsample_voxel:=0.02
+    downsample_voxel:=0.02 \
+    pca_components:=3 \
+    pca_buffer_size:=10
 ```
 
-### View Results in RViz
+### Understanding PCA Visualization
 
-Add a PointCloud2 display and subscribe to `/sonata/semantic_cloud` to visualize semantic segmentation results.
+The colors in `/sonata/pca_cloud` represent learned features:
+- **Similar colors** = similar learned representations
+- **Distinct colors** = different semantic/geometric properties
+- **RGB channels** = First 3 PCA components of high-dimensional features
+
+📖 **See [FEATURE_EXTRACTION_GUIDE.md](FEATURE_EXTRACTION_GUIDE.md) for detailed explanation**
 
 ## Configuration
 
@@ -112,7 +160,8 @@ Edit `config/sonata_params.yaml` to customize:
 ```yaml
 # Input/Output Topics
 input_topic: "/cloud_registered_current"
-output_topic: "/sonata/semantic_cloud"
+output_topic: "/sonata/feature_cloud"        # Original colors
+output_pca_topic: "/sonata/pca_cloud"        # PCA visualization
 
 # Model Settings
 model_name: "facebook/sonata"
@@ -123,8 +172,10 @@ downsample_voxel: 0.02  # 2cm voxel downsampling
 use_normals: true       # Estimate surface normals
 use_colors: true        # Use RGB colors
 
-# Segmentation
-num_classes: 20         # ScanNet: 20 classes
+# PCA Visualization
+pca_components: 3       # Number of components (3 for RGB)
+normalize_features: true  # Normalize before PCA
+pca_buffer_size: 10     # Frames to buffer for PCA fitting
 ```
 
 ## Docker Integration
@@ -189,11 +240,22 @@ docker-compose up
 
 ### Subscribed Topics
 - `input_topic` (sensor_msgs/PointCloud2): Input point cloud from SR_LIVO
+  - Default: `/cloud_registered_current`
 
-### Published Topics
-- `output_topic` (sensor_msgs/PointCloud2): Semantic point cloud with labels
+### Published Topics (Feature Extraction Mode)
+- `/sonata/pca_cloud` (sensor_msgs/PointCloud2): **Main output** - Point cloud colored by PCA components
+  - Fields: `x, y, z, rgb`
+  - RGB colors represent first 3 PCA components of learned features
+  - Use this for visualization in RViz
+
+- `/sonata/feature_cloud` (sensor_msgs/PointCloud2): Original point cloud with RGB
+  - Fields: `x, y, z, rgb`
+  - Original colors from SR_LIVO (reference)
+
+### Published Topics (Segmentation Mode - Legacy)
+- `/sonata/semantic_cloud` (sensor_msgs/PointCloud2): Point cloud with semantic labels
   - Fields: `x, y, z, r, g, b, label`
-  - `label`: Semantic class ID (0-19 for ScanNet)
+  - Requires fine-tuned segmentation model
 
 ## Performance Tuning
 

@@ -12,6 +12,7 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/sonata_segmentation_node.py
+  scripts/sonata_feature_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

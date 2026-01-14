@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Arguments -->
+    <arg name="config_file" default="$(find sonata_ros_bridge)/config/sonata_params.yaml" />
+    <arg name="input_topic" default="/cloud_registered_current" />
+    <arg name="output_topic" default="/sonata/feature_cloud" />
+    <arg name="output_pca_topic" default="/sonata/pca_cloud" />
+    <arg name="device" default="cuda" />
+    <arg name="downsample_voxel" default="0.02" />
+    <arg name="pca_components" default="3" />
+    <arg name="pca_buffer_size" default="10" />
+
+    <!-- Sonata Feature Extraction Node -->
+    <node name="sonata_feature_node" pkg="sonata_ros_bridge" type="sonata_feature_node.py" output="screen">
+        <!-- Load parameters from YAML file -->
+        <rosparam command="load" file="$(arg config_file)" />
+
+        <!-- Override with launch arguments if provided -->
+        <param name="input_topic" value="$(arg input_topic)" />
+        <param name="output_topic" value="$(arg output_topic)" />
+        <param name="output_pca_topic" value="$(arg output_pca_topic)" />
+        <param name="device" value="$(arg device)" />
+        <param name="downsample_voxel" value="$(arg downsample_voxel)" />
+        <param name="pca_components" value="$(arg pca_components)" />
+        <param name="pca_buffer_size" value="$(arg pca_buffer_size)" />
+    </node>
+
+</launch>

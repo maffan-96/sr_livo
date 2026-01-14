@@ -2,21 +2,23 @@
 
 # ROS Topics
 input_topic: "/cloud_registered_current"  # Input point cloud from SR_LIVO
-output_topic: "/sonata/semantic_cloud"     # Output semantic point cloud
+output_topic: "/sonata/feature_cloud"      # Output point cloud (with original colors)
+output_pca_topic: "/sonata/pca_cloud"     # Output point cloud colored by PCA components
 
 # Model Configuration
 model_name: "facebook/sonata"              # Hugging Face model ID
 device: "cuda"                             # 'cuda' or 'cpu'
-inference_mode: "feature"                  # 'feature' or 'segmentation'
+feature_layer: "final"                     # Which layer to extract features from
 
 # Point Cloud Processing
 downsample_voxel: 0.02                     # Voxel size for downsampling (meters), 0 to disable
 use_normals: true                          # Estimate and use surface normals
 use_colors: true                           # Use RGB color information
-batch_size: 1                              # Batch size for inference
 
-# Semantic Segmentation
-num_classes: 20                            # Number of semantic classes (ScanNet: 20)
+# PCA Visualization
+pca_components: 3                          # Number of PCA components (use 3 for RGB visualization)
+normalize_features: true                   # Normalize features before PCA
+pca_buffer_size: 10                        # Number of frames to buffer for PCA fitting
 
 # Alternative input topics (comment/uncomment as needed):
 # input_topic: "/cloud_global_map"         # Global map from SR_LIVO
